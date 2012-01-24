@@ -37,7 +37,7 @@ module Neo4j
       def write_local_property(key, value)
         key_s = key.to_s
         if !@properties.has_key?(key_s) || @properties[key_s] != value
-          attribute_will_change!(key_s) unless _invalid_attribute_name?(key_s)
+          attribute_will_change!(key_s)
           @properties[key_s] = value.nil? ? attribute_defaults[key_s] : value
         end
         value
@@ -57,9 +57,6 @@ module Neo4j
       # Mass-assign attributes.  Stops any protected attributes from being assigned.
       def attributes=(attributes, guard_protected_attributes = true)
         attributes = sanitize_for_mass_assignment(attributes) if guard_protected_attributes
-
-        # by default remove all hidden properties
-        attributes = attributes.reject{|a,_| _invalid_attribute_name?(a)}
 
         multi_parameter_attributes = []
         attributes.each do |k, v|
@@ -206,7 +203,7 @@ module Neo4j
       end
 
       def _invalid_attribute_name?(attr_name)
-        attr_name.to_s[0] == ?_
+        attr_name.to_s[0] == ?_ && !self.class._decl_props.include?(attr_name.to_sym)
       end
 
       # Known properties are either in the @properties, the declared
@@ -225,6 +222,8 @@ module Neo4j
 
       def property_changed?
         return !@properties.empty? unless persisted?
+        #!!@properties.keys.find{|k| property?(k) && self._java_node.getProperty(k.to_s) != @properties[k] }
+
         !!@properties.keys.find{|k| self._java_node.getProperty(k.to_s) != @properties[k] }
       end
 
