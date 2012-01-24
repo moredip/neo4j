@@ -88,7 +88,8 @@ module Neo4j
       ##
       # Overrides Rails's save method to save snapshots.
       def save
-        if self.changed? || self.relationships_changed?
+        # have to detected private properties, TODO self.changed?
+        if self.property_changed? || self.relationships_changed?
           self._version = current_version + 1
           super
           revise
@@ -130,7 +131,9 @@ module Neo4j
 
       def each_versionable_relationship
         rule_relationships = java.util.HashSet.new(Neo4j::Rule::Rule.rule_names_for(_classname))
+        puts "each_versionable_relationship #{_classname} - #{Neo4j::Rule::Rule.rule_names_for(_classname).inspect}"
         self._java_node.getRelationships().each do |rel|
+          puts "  each_versionable_relationship #{rel.getType()} , yield #{rule_relationships.contains(rel.getType().name().to_sym)} - #{rel.getType.name.to_sym == :version}"
           yield rel unless rule_relationships.contains(rel.getType().name().to_sym) || rel.getType.name.to_sym == :version
         end
       end
@@ -156,11 +159,13 @@ module Neo4j
       def restore_relationships(snapshot)
         each_versionable_relationship{|rel| rel.del}
         snapshot._java_node.getRelationships().each do |rel|
+          puts "restore_relationships #{snapshot.props.inspect}, rel #{rel.props.inspect} name #{rel.getType.name.to_sym}"
           restore_relationship(rel,snapshot) unless rel.getType.name.to_sym == :version
         end
       end
 
       def restore_relationship(rel,snapshot)
+        puts "--- > restore_relationship #{rel}"
         create_relationship(snapshot._java_node, self._java_node, rel, restore_relationship_type(rel.getType()))
       end
 

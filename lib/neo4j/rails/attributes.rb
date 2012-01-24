@@ -37,7 +37,7 @@ module Neo4j
       def write_local_property(key, value)
         key_s = key.to_s
         if !@properties.has_key?(key_s) || @properties[key_s] != value
-          attribute_will_change!(key_s)
+          attribute_will_change!(key_s) unless _invalid_attribute_name?(key_s)
           @properties[key_s] = value.nil? ? attribute_defaults[key_s] : value
         end
         value
@@ -57,6 +57,9 @@ module Neo4j
       # Mass-assign attributes.  Stops any protected attributes from being assigned.
       def attributes=(attributes, guard_protected_attributes = true)
         attributes = sanitize_for_mass_assignment(attributes) if guard_protected_attributes
+
+        # by default remove all hidden properties
+        attributes = attributes.reject{|a,_| _invalid_attribute_name?(a)}
 
         multi_parameter_attributes = []
         attributes.each do |k, v|
@@ -179,7 +182,7 @@ module Neo4j
       def attributes
         ret = {}
         attribute_names.each do |attribute_name|
-          ret[attribute_name] = respond_to?(attribute_name) ? send(attribute_name) : send(:[], attribute_name)
+          ret[attribute_name] = self._decl_props[attribute_name.to_sym] ? send(attribute_name) :  send(:[], attribute_name)
         end
         ret
       end
@@ -187,6 +190,9 @@ module Neo4j
       # Known properties are either in the @properties, the declared
       # attributes or the property keys for the persisted node.
       def property_names
+        # initialize @properties if needed since
+        # we can ask property names before the object is initialized (active_support initialize callbacks, respond_to?)
+        @properties ||= {}
         keys = @properties.keys + self.class._decl_props.keys.map { |k| k.to_s }
         keys += _java_entity.property_keys.to_a if persisted?
         keys.flatten.uniq
@@ -196,12 +202,17 @@ module Neo4j
       # attributes or the property keys for the persisted node.  Any attributes
       # that start with <tt>_</tt> are rejected
       def attribute_names
-        property_names.reject { |property_name| property_name[0] == ?_ }
+        property_names.reject { |property_name| _invalid_attribute_name?(property_name) }
+      end
+
+      def _invalid_attribute_name?(attr_name)
+        attr_name.to_s[0] == ?_
       end
 
       # Known properties are either in the @properties, the declared
       # properties or the property keys for the persisted node
       def property?(name)
+        return false unless @properties
         @properties.has_key?(name) ||
             self.class._decl_props.has_key?(name) ||
             begin
@@ -210,6 +221,11 @@ module Neo4j
               set_deleted_properties
               nil
             end
+      end
+
+      def property_changed?
+        return !@properties.empty? unless persisted?
+        !!@properties.keys.find{|k| self._java_node.getProperty(k.to_s) != @properties[k] }
       end
 
       # Return true if method_name is the name of an appropriate attribute
@@ -228,7 +244,7 @@ module Neo4j
 
       # To get ActiveModel::Dirty to work, we need to be able to call undeclared
       # properties as though they have get methods
-      def method_missing(method_id, *args, &block)
+      def attribute_missing(method_id, *args, &block)
         method_name = method_id.to_s
         if property?(method_name)
           self[method_name]

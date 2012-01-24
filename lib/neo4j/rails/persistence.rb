@@ -197,7 +197,7 @@ module Neo4j
       # Write attributes to the Neo4j DB only if they're altered
       def write_changed_attributes
         @properties.each do |attribute, value|
-          write_attribute(attribute, value) if changed_attributes.has_key?(attribute)
+          write_attribute(attribute, value) if changed_attributes.has_key?(attribute) || _invalid_attribute_name?(attribute)
         end
       end
 
