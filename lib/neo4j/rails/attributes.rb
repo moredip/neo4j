@@ -252,14 +252,15 @@ module Neo4j
         end
       end
 
-      def respond_to?(method_id, include_private = false)
-        method_name = method_id.to_s
-        if property?(method_name)
-          true
-        else
-          super
-        end
-      end
+      # TODO THIS IS ONLY NEEDED IN ACTIVEMODEL < 3.2, ?
+      #def respond_to?(method_id, include_private = false)
+      #  method_name = method_id.to_s
+      #  if property?(method_name)
+      #    true
+      #  else
+      #    super
+      #  end
+      #end
 
       # Wrap the getter in a conversion from Java to Ruby
       def read_local_property_with_type_conversion(property)
