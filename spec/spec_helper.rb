@@ -55,6 +55,7 @@ RSpec.configure do |c|
   $name_counter = 0
 
   c.filter_run_excluding :identity_map => true if not Neo4j::IdentityMap.enabled
+  c.filter_run_excluding :slow => ENV['TRAVIS'] != 'true'
 
   c.before(:each, :type => :transactional) do
     new_tx
